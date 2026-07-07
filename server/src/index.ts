@@ -11,6 +11,19 @@ import {
   searchSessions,
   primeSearchIndex,
 } from "./history.js";
+import {
+  loadState,
+  isFavorite,
+  getCustomTitle,
+  setFavorite,
+  setTitle,
+  getFolders,
+  getFolderId,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  setSessionFolder,
+} from "./state.js";
 
 const app = new Hono();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,12 +39,78 @@ app.get("/api/sessions", (c) => {
   if (!listCache || c.req.query("refresh") === "1") {
     listCache = scanSessions();
   }
-  return c.json(listCache);
+  loadState();
+  return c.json(
+    listCache.map((m) => ({
+      ...m,
+      title: getCustomTitle(m.id) || m.title,
+      favorite: isFavorite(m.id),
+      folderId: getFolderId(m.id),
+    })),
+  );
 });
 
 app.get("/api/search", (c) => {
   const q = c.req.query("q") || "";
-  return c.json(searchSessions(q));
+  const results = searchSessions(q);
+  loadState();
+  return c.json(
+    results.map((m) => ({
+      ...m,
+      title: getCustomTitle(m.id) || m.title,
+      favorite: isFavorite(m.id),
+      folderId: getFolderId(m.id),
+    })),
+  );
+});
+
+// 收藏
+app.post("/api/sessions/:id/favorite", (c) => {
+  setFavorite(c.req.param("id"), true);
+  return c.json({ ok: true });
+});
+app.delete("/api/sessions/:id/favorite", (c) => {
+  setFavorite(c.req.param("id"), false);
+  return c.json({ ok: true });
+});
+// 重命名（空标题 = 恢复自动生成）
+app.put("/api/sessions/:id/title", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  setTitle(
+    c.req.param("id"),
+    typeof body.title === "string" ? body.title : null,
+  );
+  return c.json({ ok: true });
+});
+
+// 文件夹
+app.get("/api/folders", (c) => c.json(getFolders()));
+app.post("/api/folders", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!name) return c.json({ error: "name required" }, 400);
+  const parentId =
+    typeof body.parentId === "string" ? body.parentId : null;
+  return c.json({ id: createFolder(name, parentId) });
+});
+app.put("/api/folders/:id", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  if (typeof body.name !== "string" || !body.name.trim())
+    return c.json({ error: "name required" }, 400);
+  renameFolder(c.req.param("id"), body.name);
+  return c.json({ ok: true });
+});
+app.delete("/api/folders/:id", (c) => {
+  deleteFolder(c.req.param("id"));
+  return c.json({ ok: true });
+});
+// 移动会话到文件夹（folderId: null = 未分类）
+app.put("/api/sessions/:id/folder", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const folderId =
+    typeof body.folderId === "string" ? body.folderId : null;
+  setSessionFolder(c.req.param("id"), folderId);
+  return c.json({ ok: true });
 });
 
 app.get("/api/sessions/:id/messages", (c) => {

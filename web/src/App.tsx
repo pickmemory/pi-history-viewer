@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import type { SessionMeta, ChatMsg, SearchResult } from "./types";
+import type { SessionMeta, ChatMsg, SearchResult, Folder } from "./types";
 import { SessionList } from "./components/SessionList";
 import { ChatWindow } from "./components/ChatWindow";
 
@@ -35,6 +35,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
 
   const refresh = useCallback(() => {
     fetch("/api/sessions")
@@ -43,9 +44,80 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  const refreshFolders = useCallback(() => {
+    fetch("/api/folders")
+      .then((r) => r.json())
+      .then((f: Folder[]) => setFolders(f))
+      .catch(() => {});
+  }, []);
+
+  const createFolder = (name: string, parentId: string | null) => {
+    fetch("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parentId }),
+    })
+      .then(() => refreshFolders())
+      .catch(() => {});
+  };
+
+  const renameFolder = (id: string, name: string) => {
+    fetch(`/api/folders/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+      .then(() => refreshFolders())
+      .catch(() => {});
+  };
+
+  const deleteFolder = (id: string) => {
+    fetch(`/api/folders/${id}`, { method: "DELETE" })
+      .then(() => {
+        refresh();
+        refreshFolders();
+      })
+      .catch(() => {});
+  };
+
+  const moveSession = (id: string, folderId: string | null) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, folderId } : s)),
+    );
+    fetch(`/api/sessions/${id}/folder`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId }),
+    }).catch(() => {});
+  };
+
+  const toggleFavorite = (id: string, fav: boolean) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, favorite: fav } : s)),
+    );
+    fetch(`/api/sessions/${id}/favorite`, {
+      method: fav ? "POST" : "DELETE",
+    }).catch(() => {});
+  };
+
+  const renameSession = (id: string, title: string) => {
+    const trimmed = title.trim();
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, title: trimmed || s.title } : s)),
+    );
+    fetch(`/api/sessions/${id}/title`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: trimmed }),
+    }).then(() => {
+      if (!trimmed) refresh(); // 清空 = 恢复自动标题，重新拉取
+    });
+  };
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshFolders();
+  }, [refresh, refreshFolders]);
 
   // 内容搜索：输入带 debounce，调后端全文检索
   useEffect(() => {
@@ -113,6 +185,13 @@ export default function App() {
           onQueryChange={setQuery}
           searchResults={searchResults}
           searching={searching}
+          onToggleFavorite={toggleFavorite}
+          onRename={renameSession}
+          folders={folders}
+          onCreateFolder={createFolder}
+          onRenameFolder={renameFolder}
+          onDeleteFolder={deleteFolder}
+          onMoveSession={moveSession}
         />
       </div>
 
@@ -135,6 +214,13 @@ export default function App() {
               onQueryChange={setQuery}
               searchResults={searchResults}
               searching={searching}
+              onToggleFavorite={toggleFavorite}
+              onRename={renameSession}
+              folders={folders}
+              onCreateFolder={createFolder}
+              onRenameFolder={renameFolder}
+              onDeleteFolder={deleteFolder}
+              onMoveSession={moveSession}
             />
           </div>
         </div>

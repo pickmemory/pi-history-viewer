@@ -7,6 +7,14 @@ export interface SessionMeta {
   messageCount: number;
   model?: string;
   durationMs?: number;
+  favorite?: boolean;
+  folderId?: string | null;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
 }
 
 export interface ChatMsg {
