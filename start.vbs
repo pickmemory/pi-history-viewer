@@ -1,4 +1,4 @@
-' Pi History Viewer 静默启动器：隐藏控制台窗口调用 start.bat
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "cmd /c ""D:\self-code\pi-history-viewer\start.bat""", 0, False
-Set WshShell = Nothing
+' Pi History Viewer 静默启动器：隐藏窗口调用同目录 start.bat（自动定位，无需改路径）
+Set fso = CreateObject("Scripting.FileSystemObject")
+here = fso.GetParentFolderName(WScript.ScriptFullName)
+CreateObject("WScript.Shell").Run "cmd /c """ & here & "\start.bat""", 0, False
