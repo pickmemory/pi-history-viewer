@@ -1,0 +1,14 @@
+{
+  "name": "pi-history-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "只读查看本机所有 pi agent 历史会话的 web 界面",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev:server": "npm run dev --workspace server",
+    "dev:web": "npm run dev --workspace web",
+    "build:web": "npm run build --workspace web",
+    "start": "npm run dev --workspace server",
+    "install:all": "npm install"
+  }
+}
