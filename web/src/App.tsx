@@ -51,14 +51,21 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  const createFolder = (name: string, parentId: string | null) => {
-    fetch("/api/folders", {
+  const createFolder = (
+    name: string,
+    parentId: string | null,
+  ): Promise<string> => {
+    return fetch("/api/folders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, parentId }),
     })
-      .then(() => refreshFolders())
-      .catch(() => {});
+      .then((r) => r.json())
+      .then((o: { id: string }) => {
+        refreshFolders();
+        return o.id;
+      })
+      .catch(() => "");
   };
 
   const renameFolder = (id: string, name: string) => {
@@ -98,6 +105,23 @@ export default function App() {
     fetch(`/api/sessions/${id}/favorite`, {
       method: fav ? "POST" : "DELETE",
     }).catch(() => {});
+  };
+
+  // 收藏并（可选）归入文件夹：一步完成
+  const favoriteToFolder = (id: string, folderId: string | null) => {
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, favorite: true, folderId } : s,
+      ),
+    );
+    fetch(`/api/sessions/${id}/favorite`, { method: "POST" }).catch(() => {});
+    if (folderId) {
+      fetch(`/api/sessions/${id}/folder`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      }).catch(() => {});
+    }
   };
 
   const renameSession = (id: string, title: string) => {
@@ -192,6 +216,7 @@ export default function App() {
           onRenameFolder={renameFolder}
           onDeleteFolder={deleteFolder}
           onMoveSession={moveSession}
+          onFavoriteToFolder={favoriteToFolder}
         />
       </div>
 
@@ -221,6 +246,7 @@ export default function App() {
               onRenameFolder={renameFolder}
               onDeleteFolder={deleteFolder}
               onMoveSession={moveSession}
+              onFavoriteToFolder={favoriteToFolder}
             />
           </div>
         </div>

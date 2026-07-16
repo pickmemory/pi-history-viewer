@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { SessionMeta, SearchResult, Folder } from "../types";
 import { MoveDialog } from "./MoveDialog";
+import { FavoriteDialog } from "./FavoriteDialog";
 
 function fmtDate(iso: string): string {
   try {
@@ -54,6 +55,7 @@ interface ItemProps {
   onToggleFavorite: (fav: boolean) => void;
   onStartRename: () => void;
   onMove: () => void;
+  onStartFavorite: () => void;
   editing: boolean;
   editValue: string;
   onEditChange: (v: string) => void;
@@ -95,6 +97,7 @@ function SessionItem(p: ItemProps) {
     >
       <button onClick={p.onSelect} className="w-full text-left px-3 py-2 pr-20">
         <div
+          title={p.s.title}
           className={`truncate text-sm ${
             p.active ? "text-indigo-900 font-medium" : "text-slate-700"
           }`}
@@ -134,8 +137,10 @@ function SessionItem(p: ItemProps) {
       {/* hover 操作：收藏 / 移动 / 重命名 */}
       <div className="absolute right-1 top-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
         <button
-          onClick={() => p.onToggleFavorite(!p.s.favorite)}
-          title={p.s.favorite ? "取消收藏" : "收藏"}
+          onClick={() =>
+            p.s.favorite ? p.onToggleFavorite(false) : p.onStartFavorite()
+          }
+          title={p.s.favorite ? "取消收藏" : "收藏到文件夹"}
           className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-amber-500 hover:bg-white"
         >
           {p.s.favorite ? "⭐" : "☆"}
@@ -189,6 +194,7 @@ export function SessionList({
   onRenameFolder,
   onDeleteFolder,
   onMoveSession,
+  onFavoriteToFolder,
 }: {
   sessions: SessionMeta[];
   currentId: string | null;
@@ -200,10 +206,11 @@ export function SessionList({
   onToggleFavorite: (id: string, fav: boolean) => void;
   onRename: (id: string, title: string) => void;
   folders: Folder[];
-  onCreateFolder: (name: string, parentId: string | null) => void;
+  onCreateFolder: (name: string, parentId: string | null) => Promise<string>;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;
   onMoveSession: (id: string, folderId: string | null) => void;
+  onFavoriteToFolder: (id: string, folderId: string | null) => void;
 }) {
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [collapsedCwd, setCollapsedCwd] = useState<Record<string, boolean>>({});
@@ -215,6 +222,7 @@ export function SessionList({
   const [newFolderParent, setNewFolderParent] = useState<string | null | undefined>(undefined);
   const [newFolderName, setNewFolderName] = useState("");
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
+  const [favoriteTarget, setFavoriteTarget] = useState<string | null>(null);
 
   const isSearch = query.trim().length > 0;
 
@@ -264,6 +272,7 @@ export function SessionList({
     onToggleFavorite: (fav: boolean) => onToggleFavorite(s.id, fav),
     onStartRename: () => startRename(s.id, s.title),
     onMove: () => setMoveTarget(s.id),
+    onStartFavorite: () => setFavoriteTarget(s.id),
     editing: editingId === s.id,
     editValue,
     onEditChange: setEditValue,
@@ -563,6 +572,22 @@ export function SessionList({
           folders={folders}
           onClose={() => setMoveTarget(null)}
           onMove={(folderId) => onMoveSession(moveTarget, folderId)}
+        />
+      )}
+
+      {favoriteTarget && (
+        <FavoriteDialog
+          folders={folders}
+          onClose={() => setFavoriteTarget(null)}
+          onPick={(folderId) => {
+            onFavoriteToFolder(favoriteTarget, folderId);
+            setFavoriteTarget(null);
+          }}
+          onCreateFolderAndPick={async (name) => {
+            const id = await onCreateFolder(name, null);
+            onFavoriteToFolder(favoriteTarget, id);
+            setFavoriteTarget(null);
+          }}
         />
       )}
     </aside>
