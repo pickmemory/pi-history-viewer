@@ -28,20 +28,34 @@ import {
 const app = new Hono();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/* 带简单内存缓存的会话列表：首次或显式 ?refresh=1 时重扫 */
+/* 带内存缓存的会话列表：60s TTL 自动失效（与搜索索引一致），
+   ?refresh=1 立即重扫。服务器长期运行也能及时看到新会话。 */
 let listCache: ReturnType<typeof scanSessions> | null = null;
+let listCacheAt = 0;
+const LIST_TTL = 60_000; // 60s
+
+function ensureListFresh(): void {
+  const now = Date.now();
+  if (!listCache || now - listCacheAt >= LIST_TTL) {
+    listCache = scanSessions();
+    listCacheAt = now;
+  }
+}
 
 app.get("/api/health", (c) =>
   c.json({ ok: true, sessionsDir: getSessionDir() }),
 );
 
 app.get("/api/sessions", (c) => {
-  if (!listCache || c.req.query("refresh") === "1") {
+  if (c.req.query("refresh") === "1") {
     listCache = scanSessions();
+    listCacheAt = Date.now();
+  } else {
+    ensureListFresh();
   }
   loadState();
   return c.json(
-    listCache.map((m) => ({
+    listCache!.map((m) => ({
       ...m,
       title: getCustomTitle(m.id) || m.title,
       favorite: isFavorite(m.id),
@@ -115,8 +129,14 @@ app.put("/api/sessions/:id/folder", async (c) => {
 
 app.get("/api/sessions/:id/messages", (c) => {
   const id = c.req.param("id");
-  if (!listCache) listCache = scanSessions();
-  const meta = listCache.find((m) => m.id === id);
+  ensureListFresh();
+  let meta = listCache!.find((m) => m.id === id);
+  // 缓存未命中：可能是在 TTL 窗口内才新写入的会话，强制重扫一次再找
+  if (!meta) {
+    listCache = scanSessions();
+    listCacheAt = Date.now();
+    meta = listCache.find((m) => m.id === id);
+  }
   if (!meta) return c.json({ error: "not found" }, 404);
   return c.json(parseSessionJsonl(meta.jsonlPath));
 });

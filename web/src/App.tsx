@@ -37,8 +37,8 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
 
-  const refresh = useCallback(() => {
-    fetch("/api/sessions")
+  const refresh = useCallback((force = false) => {
+    fetch(`/api/sessions${force ? "?refresh=1" : ""}`)
       .then((r) => r.json())
       .then((s: SessionMeta[]) => setSessions(s))
       .catch(() => {});
@@ -147,7 +147,7 @@ export default function App() {
     setLoading(true);
     fetch(`/api/sessions/${currentId}/messages`)
       .then((r) => r.json())
-      .then((m: ChatMsg[]) => setMsgs(m))
+      .then((m: unknown) => setMsgs(Array.isArray(m) ? (m as ChatMsg[]) : []))
       .catch(() => setMsgs([]))
       .finally(() => setLoading(false));
   }, [currentId]);
@@ -292,7 +292,7 @@ export default function App() {
               ) : null}
               <span>💬 {current.messageCount}</span>
               <button
-                onClick={refresh}
+                onClick={() => refresh(true)}
                 title="刷新列表"
                 className="p-1 hover:text-indigo-500"
               >
