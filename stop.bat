@@ -1,4 +1,4 @@
 @echo off
-REM 停止 Pi History Viewer 服务（释放 8753 端口）
+REM Stop Pi History Viewer (frees port 8753).
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8753 " ^| findstr LISTENING') do taskkill /F /PID %%a
-echo Pi History Viewer 已停止。
+echo Pi History Viewer stopped.
